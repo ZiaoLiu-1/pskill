@@ -49,13 +49,7 @@ func (t *DashboardTab) View(width, height int) string {
 	var b strings.Builder
 
 	// Logo
-	logo := titleStyle.Render(`
-    ██████╗ ███████╗██╗  ██╗██╗██╗     ██╗     
-    ██╔══██╗██╔════╝██║ ██╔╝██║██║     ██║     
-    ██████╔╝███████╗█████╔╝ ██║██║     ██║     
-    ██╔═══╝ ╚════██║██╔═██╗ ██║██║     ██║     
-    ██║     ███████║██║  ██╗██║███████╗███████╗
-    ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝`)
+	logo := titleStyle.Render(Logo)
 
 	b.WriteString(logo)
 	b.WriteString("\n")

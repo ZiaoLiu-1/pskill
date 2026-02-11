@@ -46,6 +46,8 @@ func (t *SettingsTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 			if len(t.clis) > 0 && t.cursor < len(t.clis) {
 				t.clis[t.cursor].SupportsSkills = !t.clis[t.cursor].SupportsSkills
 			}
+		case "a":
+			t.cfg.AutoUpdateTrending = !t.cfg.AutoUpdateTrending
 		}
 	}
 	return t, nil
@@ -112,6 +114,7 @@ func (t *SettingsTab) ShortHelp() []string {
 	return []string{
 		helpEntry("j/k", "nav"),
 		helpEntry("space", "toggle"),
+		helpEntry("a", "auto-update"),
 	}
 }
 func (t *SettingsTab) AcceptsTextInput() bool { return false }

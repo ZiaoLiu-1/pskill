@@ -56,10 +56,7 @@ func configPath() string {
 
 func LoadGlobal() (Config, error) {
 	d := defaults()
-	_ = os.MkdirAll(d.HomeDir, 0o755)
-	_ = os.MkdirAll(d.StoreDir, 0o755)
-	_ = os.MkdirAll(d.CacheDir, 0o755)
-	_ = os.MkdirAll(d.IndexDir, 0o755)
+	_ = os.MkdirAll(filepath.Dir(configPath()), 0o755)
 
 	v := viper.New()
 	v.SetConfigFile(configPath())
@@ -76,6 +73,10 @@ func LoadGlobal() (Config, error) {
 	if err := v.Unmarshal(&cfg); err != nil {
 		return Config{}, err
 	}
+	// Ensure config dirs exist (use loaded config, not defaults)
+	_ = os.MkdirAll(cfg.StoreDir, 0o755)
+	_ = os.MkdirAll(cfg.CacheDir, 0o755)
+	_ = os.MkdirAll(cfg.IndexDir, 0o755)
 	return cfg, nil
 }
 

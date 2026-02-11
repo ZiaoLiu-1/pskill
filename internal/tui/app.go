@@ -15,6 +15,13 @@ import (
 	"github.com/ZiaoLiu-1/pskill/internal/store"
 )
 
+type toastMsg struct {
+	text     string
+	duration time.Duration
+}
+
+type toastTimeoutMsg struct{}
+
 type App struct {
 	cfg        config.Config
 	debug      bool
@@ -24,7 +31,8 @@ type App struct {
 	tabs       map[AppTabID]Tab
 	status     string
 	project    string
-	onboarding bool // true when in onboarding wizard (hides chrome)
+	onboarding bool
+	toast      string
 }
 
 func NewApp(cfg config.Config, debug bool) *App {
@@ -164,6 +172,16 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusMsg:
 		a.status = m.text
+		return a, nil
+
+	case toastMsg:
+		a.toast = m.text
+		return a, tea.Tick(m.duration, func(t time.Time) tea.Msg {
+			return toastTimeoutMsg{}
+		})
+
+	case toastTimeoutMsg:
+		a.toast = ""
 		return a, nil
 
 	case tea.KeyMsg:
@@ -322,6 +340,9 @@ func (a *App) renderHelpBar(w int) string {
 
 	left := strings.Join(parts, "  ")
 	right := successStyle.Render(a.status)
+	if a.toast != "" {
+		right = activeTabStyle.Render(a.toast)
+	}
 
 	gap := w - lipgloss.Width(left) - lipgloss.Width(right) - 2
 	if gap < 1 {

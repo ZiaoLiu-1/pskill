@@ -12,15 +12,15 @@ func EnsureSymlink(src, dst string) error {
 	}
 	_ = os.Remove(dst)
 
-	if err := os.Symlink(src, dst); err == nil {
+	err := os.Symlink(src, dst)
+	if err == nil {
 		return nil
 	}
-
 	// Windows fallback when symlink permissions are restricted.
 	if runtime.GOOS == "windows" {
 		return copyDir(src, dst)
 	}
-	return nil
+	return err
 }
 
 func copyDir(src, dst string) error {
