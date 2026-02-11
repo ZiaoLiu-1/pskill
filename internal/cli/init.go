@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"golang.org/x/term"
 
+	"github.com/ZiaoLiu-1/pskill/internal/adapter"
 	"github.com/ZiaoLiu-1/pskill/internal/config"
 	"github.com/ZiaoLiu-1/pskill/internal/detector"
 	"github.com/ZiaoLiu-1/pskill/internal/scanner"
@@ -71,9 +72,14 @@ func initNonInteractive(cfg config.Config, importExisting bool) error {
 			return err
 		}
 		st := store.NewManager(cfg.StoreDir)
+		adapters := adapter.All()
 		for _, sk := range inv.Skills {
 			if err := st.ImportSkill(sk); err != nil {
 				fmt.Fprintf(os.Stderr, "warn: unable to import %s: %v\n", sk.Name, err)
+				continue
+			}
+			if ad, ok := adapters[sk.SourceCLI]; ok && ad.SupportsSkills() {
+				_ = st.LinkSkillToCLI(sk.Name, ad.SkillDir())
 			}
 		}
 	}

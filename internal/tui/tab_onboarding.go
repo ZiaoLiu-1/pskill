@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ZiaoLiu-1/pskill/internal/config"
 	"github.com/ZiaoLiu-1/pskill/internal/detector"
@@ -243,13 +244,7 @@ func (t *OnboardingTab) ShortHelp() []string {
 func (t *OnboardingTab) viewWelcome() string {
 	var b strings.Builder
 
-	logo := titleStyle.Render(`
-    ██████╗ ███████╗██╗  ██╗██╗██╗     ██╗
-    ██╔══██╗██╔════╝██║ ██╔╝██║██║     ██║
-    ██████╔╝███████╗█████╔╝ ██║██║     ██║
-    ██╔═══╝ ╚════██║██╔═██╗ ██║██║     ██║
-    ██║     ███████║██║  ██╗██║███████╗███████╗
-    ╚═╝     ╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝`)
+	logo := titleStyle.Render(Logo)
 
 	b.WriteString(logo + "\n")
 	b.WriteString(dimStyle.Render("    Universal LLM Skill Manager") + "\n\n")
@@ -468,6 +463,20 @@ func (t *OnboardingTab) stepHeader(num int, title string) string {
 }
 
 func (t *OnboardingTab) pad(content string) string {
+	// Center content horizontally
+	contentW := lipgloss.Width(content)
+	if contentW < t.width {
+		pad := (t.width - contentW) / 2
+		if pad > 0 {
+			lines := strings.Split(content, "\n")
+			padded := make([]string, 0, len(lines))
+			prefix := strings.Repeat(" ", pad)
+			for _, l := range lines {
+				padded = append(padded, prefix+l)
+			}
+			return strings.Join(padded, "\n")
+		}
+	}
 	return content
 }
 

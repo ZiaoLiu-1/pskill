@@ -39,8 +39,14 @@ func (t *MonitorTab) Init() tea.Cmd { return t.loadCmd() }
 func (t *MonitorTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 	switch m := msg.(type) {
 	case tea.KeyMsg:
-		if m.String() == "r" {
+		switch m.String() {
+		case "r":
 			return t, t.loadCmd()
+		case "d":
+			// Delete stale placeholder
+			if len(t.stats.Stale) > 0 {
+				t.stats.Stale = []string{} // clear for now
+			}
 		}
 	case monitorMsg:
 		t.stats = m.stats

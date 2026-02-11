@@ -3,10 +3,13 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
 
+	"github.com/ZiaoLiu-1/pskill/internal/adapter"
 	"github.com/ZiaoLiu-1/pskill/internal/config"
 	"github.com/ZiaoLiu-1/pskill/internal/store"
 )
@@ -30,9 +33,17 @@ func newListCmd() *cobra.Command {
 			}
 
 			if cliName != "" {
+				key := strings.ToLower(strings.TrimSpace(cliName))
+				ad, ok := adapter.All()[key]
+				if !ok || !ad.SupportsSkills() {
+					fmt.Fprintf(os.Stderr, "pskill: CLI %q not found or does not support skills\n", cliName)
+					return nil
+				}
+				skillDir := ad.SkillDir()
 				filtered := make([]string, 0, len(skills))
 				for _, s := range skills {
-					if strings.Contains(strings.ToLower(s), strings.ToLower(cliName)) {
+					linkPath := filepath.Join(skillDir, s)
+					if _, err := os.Stat(linkPath); err == nil {
 						filtered = append(filtered, s)
 					}
 				}

@@ -27,6 +27,7 @@ type DiscoverTab struct {
 	sortMode  int
 	local     []search.Result
 	remote    []registry.SkillResult
+	status    string
 }
 
 func NewDiscoverTab(cfg config.Config) Tab {
@@ -70,6 +71,9 @@ func (t *DiscoverTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 				}
 			case "s":
 				t.sortMode = (t.sortMode + 1) % 3
+			case "enter":
+				// Install action placeholder
+				t.status = "Install triggered (placeholder)"
 			}
 		}
 
@@ -83,8 +87,11 @@ func (t *DiscoverTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 }
 
 func (t *DiscoverTab) View(width, height int) string {
-	leftW := width/2 - 2
-	rightW := width - leftW - 4
+	l := ComputeLayout(width, height, true)
+	if l.IsTooSmall {
+		return RenderTooSmall(width, height)
+	}
+
 	sortNames := []string{"relevance", "trending", "newest"}
 
 	var list strings.Builder
@@ -138,7 +145,7 @@ func (t *DiscoverTab) View(width, height int) string {
 		list.WriteString(fmt.Sprintf("%s%s %s  %s\n", prefix, badge, name, score))
 	}
 
-	leftPane := activePaneStyle.Width(leftW).Height(height - 2).Render(list.String())
+	leftPane := activePaneStyle.Width(l.LeftW).Height(l.ContentH).Render(list.String())
 
 	// Preview pane
 	var preview strings.Builder
@@ -155,10 +162,10 @@ func (t *DiscoverTab) View(width, height int) string {
 		preview.WriteString("\n" + dimStyle.Render("Press enter to install/view"))
 	} else {
 		md := "Select a result to preview."
-		preview.WriteString(components.RenderMarkdown(md, rightW-4))
+		preview.WriteString(components.RenderMarkdown(md, l.RightW-4))
 	}
 
-	rightPane := paneStyle.Width(rightW).Height(height - 2).Render(preview.String())
+	rightPane := paneStyle.Width(l.RightW).Height(l.ContentH).Render(preview.String())
 
 	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
 }

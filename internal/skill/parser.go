@@ -2,6 +2,7 @@ package skill
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -44,11 +45,12 @@ func Parse(raw []byte, path string, sourceCLI string) (Skill, error) {
 }
 
 func fallbackName(path string) string {
-	parts := strings.Split(path, "/")
-	if len(parts) < 2 {
+	dir := filepath.Dir(path)
+	base := filepath.Base(dir)
+	if base == "." || base == "/" {
 		return "unknown-skill"
 	}
-	return parts[len(parts)-2]
+	return base
 }
 
 func inferTags(values ...string) []string {

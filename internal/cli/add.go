@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -66,7 +67,11 @@ func newAddCmd() *cobra.Command {
 				wd, _ := os.Getwd()
 				manifest, err := project.Load(wd)
 				if err != nil {
-					manifest = project.Manifest{Name: filepathBase(wd), TargetCLIs: targets}
+					name := filepath.Base(wd)
+					if name == "" || name == "." || name == "/" {
+						name = "project"
+					}
+					manifest = project.Manifest{Name: name, TargetCLIs: targets}
 				}
 				manifest.Installed = appendIfMissing(manifest.Installed, skillName)
 				manifest.TargetCLIs = targets
@@ -90,15 +95,4 @@ func appendIfMissing(items []string, item string) []string {
 		}
 	}
 	return append(items, item)
-}
-
-func filepathBase(path string) string {
-	for strings.HasSuffix(path, "/") {
-		path = strings.TrimSuffix(path, "/")
-	}
-	parts := strings.Split(path, "/")
-	if len(parts) == 0 {
-		return "project"
-	}
-	return parts[len(parts)-1]
 }

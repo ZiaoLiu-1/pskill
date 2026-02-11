@@ -59,6 +59,11 @@ func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 			if t.cursor > 0 {
 				t.cursor--
 			}
+		case "i", "enter":
+			if len(t.items) > 0 {
+				// Install placeholder
+				t.loading = true // trigger spinner or toast
+			}
 		}
 	case trendingMsg:
 		t.items = m.items
