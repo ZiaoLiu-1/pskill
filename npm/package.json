@@ -1,0 +1,14 @@
+{
+  "name": "pskill",
+  "version": "0.1.0",
+  "description": "Universal LLM skill manager",
+  "bin": {
+    "pskill": "bin/pskill.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "scripts": {
+    "postinstall": "node bin/pskill.js --install-only"
+  }
+}

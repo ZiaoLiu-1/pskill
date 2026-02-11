@@ -1,0 +1,32 @@
+version: 2
+
+project_name: pskill
+
+builds:
+  - main: ./cmd/pskill
+    binary: pskill
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - darwin
+      - linux
+      - windows
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - formats: [tar.gz]
+    format_overrides:
+      - goos: windows
+        formats: [zip]
+
+brews:
+  - repository:
+      owner: ZiaoLiu-1
+      name: homebrew-tap
+    homepage: https://skillsmp.com
+    description: Universal LLM skill manager
+
+checksum:
+  name_template: "checksums.txt"
