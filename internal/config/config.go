@@ -1,12 +1,19 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 )
+
+// IsFirstRun returns true if no config.yaml exists yet (never initialized).
+func IsFirstRun() bool {
+	_, err := os.Stat(configPath())
+	return errors.Is(err, os.ErrNotExist)
+}
 
 type Config struct {
 	HomeDir            string   `mapstructure:"homeDir" yaml:"homeDir"`

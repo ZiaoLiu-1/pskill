@@ -1,6 +1,10 @@
 package tui
 
-import tea "github.com/charmbracelet/bubbletea"
+import (
+	tea "github.com/charmbracelet/bubbletea"
+
+	"github.com/ZiaoLiu-1/pskill/internal/config"
+)
 
 type ViewState int
 
@@ -21,9 +25,10 @@ const (
 	TabTrending
 	TabMonitor
 	TabSettings
+	TabOnboarding // special full-screen tab, not in the tab bar
 )
 
-const TabCount = 6
+const TabCount = 6 // only the 6 main tabs cycle with tab/shift+tab
 
 type Tab interface {
 	Init() tea.Cmd
@@ -41,4 +46,12 @@ type statusMsg struct {
 type skillsScannedMsg struct {
 	names []string
 	count int
+}
+
+// onboardingDoneMsg is emitted when the onboarding wizard finishes.
+// app.go catches it to save config, switch to dashboard, and trigger a scan.
+type onboardingDoneMsg struct {
+	cfg            config.Config
+	scannedNames   []string
+	scannedCount   int
 }

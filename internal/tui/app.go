@@ -16,18 +16,43 @@ import (
 )
 
 type App struct {
-	cfg       config.Config
-	debug     bool
-	width     int
-	height    int
-	activeTab AppTabID
-	tabs      map[AppTabID]Tab
-	status    string
-	project   string
+	cfg        config.Config
+	debug      bool
+	width      int
+	height     int
+	activeTab  AppTabID
+	tabs       map[AppTabID]Tab
+	status     string
+	project    string
+	onboarding bool // true when in onboarding wizard (hides chrome)
 }
 
 func NewApp(cfg config.Config, debug bool) *App {
+	// Check if first run -- start onboarding wizard
+	if config.IsFirstRun() {
+		return newAppOnboarding(cfg, debug)
+	}
 	return NewAppWithTab(cfg, debug, TabDashboard)
+}
+
+// NewAppOnboarding creates the app in onboarding mode (for pskill init --force too).
+func NewAppOnboarding(cfg config.Config, debug bool) *App {
+	return newAppOnboarding(cfg, debug)
+}
+
+func newAppOnboarding(cfg config.Config, debug bool) *App {
+	tabs := map[AppTabID]Tab{
+		TabOnboarding: NewOnboardingTab(cfg),
+	}
+	return &App{
+		cfg:        cfg,
+		debug:      debug,
+		activeTab:  TabOnboarding,
+		tabs:       tabs,
+		status:     "Setup",
+		project:    cwdBase(),
+		onboarding: true,
+	}
 }
 
 func NewAppWithTab(cfg config.Config, debug bool, startTab AppTabID) *App {
@@ -56,8 +81,10 @@ func (a *App) Init() tea.Cmd {
 			cmds = append(cmds, c)
 		}
 	}
-	// Auto-scan system skills on launch
-	cmds = append(cmds, a.scanSystemCmd())
+	// Only auto-scan when NOT in onboarding (onboarding does its own scan)
+	if !a.onboarding {
+		cmds = append(cmds, a.scanSystemCmd())
+	}
 	return tea.Batch(cmds...)
 }
 
@@ -66,32 +93,100 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.WindowSizeMsg:
 		a.width = m.Width
 		a.height = m.Height
-		return a, nil
-
-	case skillsScannedMsg:
-		a.status = fmt.Sprintf("Scanned %d skills", m.count)
-		// Forward to skills tab
-		if tab, ok := a.tabs[TabMySkills]; ok {
-			nt, cmd := tab.Update(m)
-			a.tabs[TabMySkills] = nt
+		// Forward to active tab (onboarding needs it)
+		if t, ok := a.tabs[a.activeTab]; ok {
+			nt, cmd := t.Update(msg)
+			a.tabs[a.activeTab] = nt
 			return a, cmd
 		}
 		return a, nil
+
+	case onboardingDoneMsg:
+		// Transition from onboarding to normal mode
+		a.cfg = m.cfg
+		a.onboarding = false
+		// Build the normal tabs
+		a.tabs = map[AppTabID]Tab{
+			TabDashboard: NewDashboardTab(a.cfg),
+			TabMySkills:  NewSkillsTab(a.cfg),
+			TabDiscover:  NewDiscoverTab(a.cfg),
+			TabTrending:  NewTrendingTab(a.cfg),
+			TabMonitor:   NewMonitorTab(a.cfg),
+			TabSettings:  NewSettingsTab(a.cfg),
+		}
+		a.activeTab = TabDashboard
+		a.status = fmt.Sprintf("Setup complete - %d skills", m.scannedCount)
+
+		// Initialize all tabs and broadcast scanned skills
+		cmds := make([]tea.Cmd, 0)
+		for _, t := range a.tabs {
+			if c := t.Init(); c != nil {
+				cmds = append(cmds, c)
+			}
+		}
+		// Forward scanned skills to My Skills tab and Dashboard
+		scannedMsg := skillsScannedMsg{names: m.scannedNames, count: m.scannedCount}
+		if tab, ok := a.tabs[TabMySkills]; ok {
+			nt, cmd := tab.Update(scannedMsg)
+			a.tabs[TabMySkills] = nt
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if tab, ok := a.tabs[TabDashboard]; ok {
+			nt, cmd := tab.Update(scannedMsg)
+			a.tabs[TabDashboard] = nt
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return a, tea.Batch(cmds...)
+
+	case skillsScannedMsg:
+		a.status = fmt.Sprintf("Scanned %d skills", m.count)
+		// Forward to skills tab and dashboard
+		var cmds []tea.Cmd
+		if tab, ok := a.tabs[TabMySkills]; ok {
+			nt, cmd := tab.Update(m)
+			a.tabs[TabMySkills] = nt
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		if tab, ok := a.tabs[TabDashboard]; ok {
+			nt, cmd := tab.Update(m)
+			a.tabs[TabDashboard] = nt
+			if cmd != nil {
+				cmds = append(cmds, cmd)
+			}
+		}
+		return a, tea.Batch(cmds...)
 
 	case statusMsg:
 		a.status = m.text
 		return a, nil
 
 	case tea.KeyMsg:
-		// If active tab wants text input, only intercept ctrl+c and tab-switch keys
+		// During onboarding, only intercept ctrl+c, everything else goes to onboarding tab
+		if a.onboarding {
+			if m.String() == "ctrl+c" {
+				return a, tea.Quit
+			}
+			t := a.tabs[a.activeTab]
+			nt, cmd := t.Update(msg)
+			a.tabs[a.activeTab] = nt
+			return a, cmd
+		}
+
+		// Normal mode key handling
 		if a.tabs[a.activeTab].AcceptsTextInput() {
 			switch m.String() {
 			case "ctrl+c":
 				return a, tea.Quit
 			case "esc":
-				// Let tab handle esc to exit text input mode
+				// Let tab handle esc
 			default:
-				// Don't intercept - forward to tab
+				// Don't intercept
 			}
 		} else {
 			switch m.String() {
@@ -143,19 +238,23 @@ func (a *App) View() string {
 
 	w := a.width
 
-	// Header
+	// During onboarding: full-screen wizard, no chrome
+	if a.onboarding {
+		help := a.renderHelpBar(w)
+		contentH := a.height - 1
+		if contentH < 3 {
+			contentH = 3
+		}
+		content := a.tabs[a.activeTab].View(w, contentH)
+		return lipgloss.JoinVertical(lipgloss.Left, content, help)
+	}
+
+	// Normal mode: header + tabs + separator + content + help
 	header := a.renderHeader(w)
-
-	// Tab bar
 	tabBar := a.renderTabBar(w)
-
-	// Separator
 	sep := dimStyle.Render(strings.Repeat("─", w))
-
-	// Help bar
 	help := a.renderHelpBar(w)
 
-	// Content height: total - header(1) - tabbar(1) - sep(1) - helpbar(1)
 	contentH := a.height - 4
 	if contentH < 3 {
 		contentH = 3
