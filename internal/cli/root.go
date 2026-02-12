@@ -14,8 +14,19 @@ import (
 )
 
 var (
-	debug bool
+	debug      bool
+	appVersion = "dev"
+	appCommit  = "none"
+	appDate    = "unknown"
 )
+
+// SetVersion is called from main to inject build-time version info.
+func SetVersion(version, commit, date string) {
+	appVersion = version
+	appCommit = commit
+	appDate = date
+	config.SetVersion(version)
+}
 
 func newRootCmd() *cobra.Command {
 	cmd := &cobra.Command{
@@ -46,12 +57,23 @@ func newRootCmd() *cobra.Command {
 		newSearchCmd(),
 		newTrendingCmd(),
 		newMonitorCmd(),
+		newVersionCmd(),
 	)
 	return cmd
 }
 
 func Execute() error {
 	return newRootCmd().Execute()
+}
+
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print version information",
+		Run: func(cmd *cobra.Command, args []string) {
+			fmt.Printf("pskill %s (commit: %s, built: %s)\n", appVersion, appCommit, appDate)
+		},
+	}
 }
 
 func withTimeout() (context.Context, context.CancelFunc) {

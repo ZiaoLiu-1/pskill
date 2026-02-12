@@ -24,11 +24,12 @@ const (
 	TabDiscover
 	TabTrending
 	TabMonitor
+	TabProjects
 	TabSettings
 	TabOnboarding // special full-screen tab, not in the tab bar
 )
 
-const TabCount = 6 // only the 6 main tabs cycle with tab/shift+tab
+const TabCount = 7 // only the 7 main tabs cycle with tab/shift+tab
 
 type Tab interface {
 	Init() tea.Cmd

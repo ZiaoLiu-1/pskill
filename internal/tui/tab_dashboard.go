@@ -94,7 +94,8 @@ func (t *DashboardTab) View(width, height int) string {
 		{"3", "Search & discover new skills"},
 		{"4", "View trending skills"},
 		{"5", "Usage monitor dashboard"},
-		{"6", "Settings & CLI configuration"},
+		{"6", "Browse projects with skills"},
+		{"7", "Settings & CLI configuration"},
 	}
 
 	for _, a := range actions {
@@ -131,7 +132,7 @@ func (t *DashboardTab) View(width, height int) string {
 func (t *DashboardTab) Title() string { return "Dashboard" }
 func (t *DashboardTab) ShortHelp() []string {
 	return []string{
-		helpEntry("1-6", "navigate"),
+		helpEntry("1-7", "navigate"),
 		helpEntry("tab", "next"),
 	}
 }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/ZiaoLiu-1/pskill/internal/adapter"
 	"github.com/ZiaoLiu-1/pskill/internal/config"
+	"github.com/ZiaoLiu-1/pskill/internal/monitor"
 	"github.com/ZiaoLiu-1/pskill/internal/project"
 	"github.com/ZiaoLiu-1/pskill/internal/registry"
 	"github.com/ZiaoLiu-1/pskill/internal/search"
@@ -38,8 +39,17 @@ func newAddCmd() *cobra.Command {
 			}
 
 			if !exists {
-				client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir)
-				if err := client.DownloadSkill(skillName, destPath); err != nil {
+				client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir, cfg.RegistryAPIKey)
+				// Search for the skill to get its GitHub URL
+				results, _, _ := client.Search(skillName, 1, 1, "stars")
+				githubURL := ""
+				for _, r := range results {
+					if r.Name == skillName {
+						githubURL = r.GithubURL
+						break
+					}
+				}
+				if err := client.DownloadSkill(skillName, githubURL, destPath); err != nil {
 					return err
 				}
 			}
@@ -78,6 +88,22 @@ func newAddCmd() *cobra.Command {
 				_ = project.Save(wd, manifest)
 				scope = "project"
 			}
+			// Record usage event
+			if tr, err := monitor.NewTracker(cfg.StatsDB); err == nil {
+				cliName := "global"
+				if len(targets) > 0 {
+					cliName = targets[0]
+				}
+				wd, _ := os.Getwd()
+				_ = tr.Record(monitor.Event{
+					SkillName: skillName,
+					CLI:       cliName,
+					Project:   filepath.Base(wd),
+					EventType: "install",
+				})
+				tr.Close()
+			}
+
 			fmt.Fprintf(os.Stdout, "Installed %s (%s)\n", skillName, scope)
 			return nil
 		},

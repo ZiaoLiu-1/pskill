@@ -9,6 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Version info set at build time via cli package.
+var appVersion = "dev"
+
+// SetVersion stores the app version.
+func SetVersion(v string) { appVersion = v }
+
+// GetVersion returns the app version.
+func GetVersion() string { return appVersion }
+
 // IsFirstRun returns true if no config.yaml exists yet (never initialized).
 func IsFirstRun() bool {
 	_, err := os.Stat(configPath())
@@ -22,6 +31,7 @@ type Config struct {
 	IndexDir           string   `mapstructure:"indexDir" yaml:"indexDir"`
 	StatsDB            string   `mapstructure:"statsDb" yaml:"statsDb"`
 	RegistryURL        string   `mapstructure:"registryUrl" yaml:"registryUrl"`
+	RegistryAPIKey     string   `mapstructure:"registryApiKey" yaml:"registryApiKey"`
 	TargetCLIs         []string `mapstructure:"targetClis" yaml:"targetClis"`
 	DefaultSkills      []string `mapstructure:"defaultSkills" yaml:"defaultSkills"`
 	AutoUpdateTrending bool     `mapstructure:"autoUpdateTrending" yaml:"autoUpdateTrending"`
@@ -92,13 +102,14 @@ func SaveGlobal(cfg Config) error {
 }
 
 func setDefaults(v *viper.Viper, cfg Config) {
-	v.Set("homeDir", cfg.HomeDir)
-	v.Set("storeDir", cfg.StoreDir)
-	v.Set("cacheDir", cfg.CacheDir)
-	v.Set("indexDir", cfg.IndexDir)
-	v.Set("statsDb", cfg.StatsDB)
-	v.Set("registryUrl", cfg.RegistryURL)
-	v.Set("targetClis", cfg.TargetCLIs)
-	v.Set("defaultSkills", cfg.DefaultSkills)
-	v.Set("autoUpdateTrending", cfg.AutoUpdateTrending)
+	v.SetDefault("homeDir", cfg.HomeDir)
+	v.SetDefault("storeDir", cfg.StoreDir)
+	v.SetDefault("cacheDir", cfg.CacheDir)
+	v.SetDefault("indexDir", cfg.IndexDir)
+	v.SetDefault("statsDb", cfg.StatsDB)
+	v.SetDefault("registryUrl", cfg.RegistryURL)
+	v.SetDefault("registryApiKey", cfg.RegistryAPIKey)
+	v.SetDefault("targetClis", cfg.TargetCLIs)
+	v.SetDefault("defaultSkills", cfg.DefaultSkills)
+	v.SetDefault("autoUpdateTrending", cfg.AutoUpdateTrending)
 }

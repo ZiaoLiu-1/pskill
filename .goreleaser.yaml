@@ -2,11 +2,21 @@ version: 2
 
 project_name: pskill
 
+before:
+  hooks:
+    - go mod tidy
+    - go test ./...
+
 builds:
   - main: ./cmd/pskill
     binary: pskill
     env:
       - CGO_ENABLED=0
+    ldflags:
+      - -s -w
+      - -X main.version={{.Version}}
+      - -X main.commit={{.ShortCommit}}
+      - -X main.date={{.Date}}
     goos:
       - darwin
       - linux
@@ -14,12 +24,16 @@ builds:
     goarch:
       - amd64
       - arm64
+    ignore:
+      - goos: windows
+        goarch: arm64
 
 archives:
   - formats: [tar.gz]
     format_overrides:
       - goos: windows
         formats: [zip]
+    name_template: "{{ .ProjectName }}_{{ .Os }}_{{ .Arch }}"
 
 brews:
   - repository:
@@ -27,6 +41,25 @@ brews:
       name: homebrew-tap
     homepage: https://skillsmp.com
     description: Universal LLM skill manager
+    license: MIT
+    install: |
+      bin.install "pskill"
 
 checksum:
   name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^ci:"
+      - "^chore:"
+
+release:
+  github:
+    owner: ZiaoLiu-1
+    name: pskill
+  prerelease: auto
+  name_template: "v{{.Version}}"

@@ -70,6 +70,7 @@ func NewAppWithTab(cfg config.Config, debug bool, startTab AppTabID) *App {
 		TabDiscover:  NewDiscoverTab(cfg),
 		TabTrending:  NewTrendingTab(cfg),
 		TabMonitor:   NewMonitorTab(cfg),
+		TabProjects:  NewProjectsTab(cfg),
 		TabSettings:  NewSettingsTab(cfg),
 	}
 	return &App{
@@ -120,6 +121,7 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			TabDiscover:  NewDiscoverTab(a.cfg),
 			TabTrending:  NewTrendingTab(a.cfg),
 			TabMonitor:   NewMonitorTab(a.cfg),
+			TabProjects:  NewProjectsTab(a.cfg),
 			TabSettings:  NewSettingsTab(a.cfg),
 		}
 		a.activeTab = TabDashboard
@@ -226,6 +228,9 @@ func (a *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.activeTab = TabMonitor
 				return a, nil
 			case "6":
+				a.activeTab = TabProjects
+				return a, nil
+			case "7":
 				a.activeTab = TabSettings
 				return a, nil
 			}
@@ -284,8 +289,13 @@ func (a *App) View() string {
 }
 
 func (a *App) renderHeader(w int) string {
-	left := titleStyle.Render("pskill v0.1.0")
-	mid := dimStyle.Render(fmt.Sprintf(" %s ", a.project))
+	left := titleStyle.Render("pskill " + config.GetVersion())
+	home, _ := os.UserHomeDir()
+	cwdPath := cwdFull()
+	if home != "" && strings.HasPrefix(cwdPath, home) {
+		cwdPath = "~" + cwdPath[len(home):]
+	}
+	mid := dimStyle.Render(fmt.Sprintf("  %s ", cwdPath))
 
 	badges := make([]string, 0, len(a.cfg.TargetCLIs))
 	for _, cli := range a.cfg.TargetCLIs {
@@ -312,7 +322,8 @@ func (a *App) renderTabBar(w int) string {
 		{"3", "Discover", TabDiscover},
 		{"4", "Trending", TabTrending},
 		{"5", "Monitor", TabMonitor},
-		{"6", "Settings", TabSettings},
+		{"6", "Projects", TabProjects},
+		{"7", "Settings", TabSettings},
 	}
 
 	parts := make([]string, 0, len(labels))
@@ -400,6 +411,14 @@ func cwdBase() string {
 		return "~"
 	}
 	return filepath.Base(wd)
+}
+
+func cwdFull() string {
+	wd, err := os.Getwd()
+	if err != nil {
+		return "~"
+	}
+	return wd
 }
 
 func logDebug(enabled bool, msg string) {

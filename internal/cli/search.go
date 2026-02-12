@@ -29,10 +29,10 @@ func newSearchCmd() *cobra.Command {
 				fmt.Printf("L%02d %-28s %.2f\n", i+1, item.Name, item.Score)
 			}
 			if online {
-				client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir)
-				remote, _ := client.Search(query, 10)
+				client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir, cfg.RegistryAPIKey)
+				remote, _ := client.AISearch(query)
 				for i, item := range remote {
-					fmt.Printf("R%02d %-28s %.2f\n", i+1, item.Name, item.Score)
+					fmt.Printf("R%02d %-28s %.2f  by %s\n", i+1, item.Name, item.Score, item.Author)
 				}
 			}
 			return nil

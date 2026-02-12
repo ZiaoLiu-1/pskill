@@ -1,7 +1,24 @@
 {
   "name": "pskill",
   "version": "0.1.0",
-  "description": "Universal LLM skill manager",
+  "description": "Universal LLM skill manager — like pnpm, but for AI skills across Cursor, Claude, Codex, and more",
+  "keywords": [
+    "llm",
+    "skills",
+    "cursor",
+    "claude",
+    "codex",
+    "ai",
+    "cli",
+    "package-manager"
+  ],
+  "homepage": "https://github.com/ZiaoLiu-1/pskill",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ZiaoLiu-1/pskill.git"
+  },
+  "author": "ZiaoLiu-1",
+  "license": "MIT",
   "bin": {
     "pskill": "bin/pskill.js"
   },
@@ -10,5 +27,17 @@
   ],
   "scripts": {
     "postinstall": "node bin/pskill.js --install-only"
-  }
+  },
+  "engines": {
+    "node": ">=16"
+  },
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ]
 }

@@ -89,6 +89,12 @@ func (t *SettingsTab) View(width, height int) string {
 	b.WriteString("\n" + titleStyle.Render("  Registry") + "\n")
 	b.WriteString(dimStyle.Render("  " + strings.Repeat("─", 45)) + "\n")
 	b.WriteString(fmt.Sprintf("  URL:            %s\n", dimStyle.Render(t.cfg.RegistryURL)))
+	apiKeyStatus := dangerStyle.Render("not set")
+	if t.cfg.RegistryAPIKey != "" {
+		masked := t.cfg.RegistryAPIKey[:10] + "..." + t.cfg.RegistryAPIKey[len(t.cfg.RegistryAPIKey)-4:]
+		apiKeyStatus = successStyle.Render(masked)
+	}
+	b.WriteString(fmt.Sprintf("  API Key:        %s\n", apiKeyStatus))
 	auto := dimStyle.Render("[ ] No")
 	if t.cfg.AutoUpdateTrending {
 		auto = successStyle.Render("[x] Yes")

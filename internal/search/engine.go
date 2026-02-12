@@ -36,6 +36,7 @@ func (e *Engine) IndexSkill(sk skill.Skill) error {
 	if err != nil {
 		return err
 	}
+	defer idx.Close()
 	doc := indexedSkill{
 		Name:        sk.Name,
 		Description: sk.Description,
@@ -64,6 +65,7 @@ func (e *Engine) Search(query string, limit int) ([]Result, error) {
 	if err != nil {
 		return nil, err
 	}
+	defer idx.Close()
 	q := bleve.NewQueryStringQuery(query)
 	req := bleve.NewSearchRequestOptions(q, limit, 0, false)
 	req.Fields = []string{"name", "description"}
