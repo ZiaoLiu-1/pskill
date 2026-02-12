@@ -89,23 +89,23 @@ func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 
 		default: // trendingBrowse
 			switch m.String() {
-			case "j", "down":
+			case "down":
 				if t.cursor < len(t.items)-1 {
 					t.cursor++
 				}
-			case "k", "up":
+			case "up":
 				if t.cursor > 0 {
 					t.cursor--
 				}
 			case "r":
 				return t, t.loadCmd()
-			case ">", ".":
+			case "right":
 				if t.page*t.pageSize < t.total {
 					t.page++
 					t.cursor = 0
 					return t, t.loadCmd()
 				}
-			case "<", ",":
+			case "left":
 				if t.page > 1 {
 					t.page--
 					t.cursor = 0
@@ -396,10 +396,10 @@ func (t *TrendingTab) ShortHelp() []string {
 		}
 	}
 	return []string{
-		helpEntry("j/k", "nav"),
+		helpEntry("↑/↓", "nav"),
 		helpEntry("enter", "install"),
 		helpEntry("x", "uninstall"),
-		helpEntry("</>", "page"),
+		helpEntry("←/→", "page"),
 		helpEntry("r", "refresh"),
 	}
 }

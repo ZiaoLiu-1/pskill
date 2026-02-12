@@ -74,11 +74,11 @@ func (t *ProjectsTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 		}
 	case tea.KeyMsg:
 		switch m.String() {
-		case "j", "down":
+		case "down":
 			if t.cursor < len(t.projects)-1 {
 				t.cursor++
 			}
-		case "k", "up":
+		case "up":
 			if t.cursor > 0 {
 				t.cursor--
 			}
@@ -215,7 +215,7 @@ func (t *ProjectsTab) Title() string      { return "Projects" }
 func (t *ProjectsTab) AcceptsTextInput() bool { return false }
 func (t *ProjectsTab) ShortHelp() []string {
 	return []string{
-		helpEntry("j/k", "nav"),
+		helpEntry("↑/↓", "nav"),
 		helpEntry("r", "refresh"),
 	}
 }

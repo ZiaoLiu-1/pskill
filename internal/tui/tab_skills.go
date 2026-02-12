@@ -76,13 +76,13 @@ func (t *SkillsTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 		}
 
 		switch m.String() {
-		case "j", "down":
+		case "down":
 			if t.cursor < len(t.filtered)-1 {
 				t.cursor++
 			} else if len(t.filtered) > 0 {
 				t.cursor = len(t.filtered) - 1
 			}
-		case "k", "up":
+		case "up":
 			if t.cursor > 0 {
 				t.cursor--
 			}
@@ -296,7 +296,7 @@ func (t *SkillsTab) ShortHelp() []string {
 	}
 	return []string{
 		helpEntry("/", "filter"),
-		helpEntry("j/k", "nav"),
+		helpEntry("↑/↓", "nav"),
 		helpEntry("g", "group"),
 		helpEntry("enter", "detail"),
 	}

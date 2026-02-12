@@ -64,11 +64,11 @@ func (t *DiscoverTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 			switch m.String() {
 			case "/":
 				t.typing = true
-			case "j", "down":
+			case "down":
 				if t.cursor < len(t.allResults())-1 {
 					t.cursor++
 				}
-			case "k", "up":
+			case "up":
 				if t.cursor > 0 {
 					t.cursor--
 				}
@@ -216,7 +216,7 @@ func (t *DiscoverTab) ShortHelp() []string {
 	return []string{
 		helpEntry("/", "search"),
 		helpEntry("m", "mode"),
-		helpEntry("j/k", "nav"),
+		helpEntry("↑/↓", "nav"),
 	}
 }
 

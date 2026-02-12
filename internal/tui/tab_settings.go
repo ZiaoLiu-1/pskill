@@ -34,11 +34,11 @@ func (t *SettingsTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 		t.clis = m
 	case tea.KeyMsg:
 		switch m.String() {
-		case "j", "down":
+		case "down":
 			if t.cursor < len(t.clis)-1 {
 				t.cursor++
 			}
-		case "k", "up":
+		case "up":
 			if t.cursor > 0 {
 				t.cursor--
 			}
@@ -118,7 +118,7 @@ func (t *SettingsTab) View(width, height int) string {
 func (t *SettingsTab) Title() string { return "Settings" }
 func (t *SettingsTab) ShortHelp() []string {
 	return []string{
-		helpEntry("j/k", "nav"),
+		helpEntry("↑/↓", "nav"),
 		helpEntry("space", "toggle"),
 		helpEntry("a", "auto-update"),
 	}
