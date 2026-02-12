@@ -41,7 +41,7 @@ func newAddCmd() *cobra.Command {
 			if !exists {
 				client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir, cfg.RegistryAPIKey)
 				// Search for the skill to get its GitHub URL
-				results, _, _ := client.Search(skillName, 1, "stars")
+				results, _, _ := client.Search(skillName, 1, 1, "stars")
 				githubURL := ""
 				for _, r := range results {
 					if r.Name == skillName {

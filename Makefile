@@ -13,15 +13,20 @@ build:
 run: build
 	./$(BIN)
 
-# Quick dev cycle: build + install to PATH + launch TUI
-start: build
-	@cp $(BIN) /usr/local/bin/$(APP) 2>/dev/null || { mkdir -p $(HOME)/bin && cp $(BIN) $(HOME)/bin/$(APP) && echo "Installed $(APP) $(VERSION) ($(COMMIT)) to $(HOME)/bin/$(APP)"; } || true
-	@command -v $(APP) >/dev/null 2>&1 && $(APP) || ./$(BIN)
+# Quick dev cycle: clean old binary + build fresh + install + launch
+start: clean build
+	@if [ "$$(id -u)" -eq 0 ]; then echo "Do not run 'sudo make start'. Run 'make start' (it will ask sudo only for install)."; exit 1; fi
+	@sudo rm -f /usr/local/bin/$(APP)
+	@sudo cp $(BIN) /usr/local/bin/$(APP)
+	@echo "$(APP) $(VERSION) ($(COMMIT)) → /usr/local/bin/$(APP)"
+	@/usr/local/bin/$(APP) version
+	@/usr/local/bin/$(APP)
 
 # Same as start but skip launching (just build + install)
 dev: build
-	@cp $(BIN) /usr/local/bin/$(APP) 2>/dev/null || { mkdir -p $(HOME)/bin && cp $(BIN) $(HOME)/bin/$(APP); } || true
-	@echo "Installed $(APP) $(VERSION) ($(COMMIT))"
+	@if [ "$$(id -u)" -eq 0 ]; then echo "Do not run 'sudo make dev'. Run 'make dev'."; exit 1; fi
+	@echo "Installing $(APP) $(VERSION) ($(COMMIT))..."
+	@sudo cp $(BIN) /usr/local/bin/$(APP) && echo "  → /usr/local/bin/$(APP)" || echo "  ⚠ Run: sudo cp $(BIN) /usr/local/bin/$(APP)"
 
 tidy:
 	go mod tidy
@@ -41,8 +46,9 @@ clean:
 	rm -rf bin/ dist/ coverage/
 
 install: build
-	@cp $(BIN) /usr/local/bin/$(APP) 2>/dev/null || { mkdir -p $(HOME)/bin && cp $(BIN) $(HOME)/bin/$(APP); }
-	@echo "Installed $(APP) $(VERSION)"
+	@if [ "$$(id -u)" -eq 0 ]; then echo "Do not run 'sudo make install'. Run 'make install'."; exit 1; fi
+	@sudo cp $(BIN) /usr/local/bin/$(APP)
+	@echo "Installed $(APP) $(VERSION) to /usr/local/bin/$(APP)"
 
 snapshot:
 	goreleaser release --snapshot --clean

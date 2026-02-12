@@ -82,11 +82,14 @@ func NewClient(baseURL, cacheDir, apiKey string) *Client {
 }
 
 // Search performs a keyword search via /api/v1/skills/search.
-func (c *Client) Search(query string, limit int, sortBy string) ([]SkillResult, int, error) {
+func (c *Client) Search(query string, limit int, page int, sortBy string) ([]SkillResult, int, error) {
 	if sortBy == "" {
 		sortBy = "recent"
 	}
-	cacheKey := fmt.Sprintf("search_%s_%d_%s", query, limit, sortBy)
+	if page < 1 {
+		page = 1
+	}
+	cacheKey := fmt.Sprintf("search_%s_%d_%d_%s", query, limit, page, sortBy)
 	if data, ok := c.cache.Load(cacheKey, 5*time.Minute); ok {
 		var resp searchResponse
 		if json.Unmarshal(data, &resp) == nil && resp.Success {
@@ -94,8 +97,8 @@ func (c *Client) Search(query string, limit int, sortBy string) ([]SkillResult, 
 		}
 	}
 
-	reqURL := fmt.Sprintf("%s/api/v1/skills/search?q=%s&limit=%d&sortBy=%s",
-		c.baseURL, url.QueryEscape(query), limit, url.QueryEscape(sortBy))
+	reqURL := fmt.Sprintf("%s/api/v1/skills/search?q=%s&page=%d&limit=%d&sortBy=%s",
+		c.baseURL, url.QueryEscape(query), page, limit, url.QueryEscape(sortBy))
 
 	body, err := c.doGet(reqURL)
 	if err != nil {
@@ -165,7 +168,7 @@ func (c *Client) AISearch(query string) ([]SkillResult, error) {
 
 // Trending returns skills sorted by stars (most popular).
 func (c *Client) Trending(limit int, page int) ([]SkillResult, int, error) {
-	return c.Search("*", limit, "stars")
+	return c.Search("*", limit, page, "stars")
 }
 
 // DownloadSkill downloads a skill's SKILL.md from its GitHub URL.
@@ -204,15 +207,18 @@ func (c *Client) doGet(reqURL string) ([]byte, error) {
 	if c.apiKey != "" {
 		req.Header.Set("Authorization", "Bearer "+c.apiKey)
 	}
+	logHTTP("request", reqURL, 0, "")
 
 	resp, err := c.http.Do(req)
 	if err != nil {
+		logHTTP("error", reqURL, 0, err.Error())
 		return nil, fmt.Errorf("request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		logHTTP("error", reqURL, resp.StatusCode, err.Error())
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
@@ -221,12 +227,38 @@ func (c *Client) doGet(reqURL string) ([]byte, error) {
 			Error *apiError `json:"error"`
 		}
 		if json.Unmarshal(body, &apiErr) == nil && apiErr.Error != nil {
+			logHTTP("response", reqURL, resp.StatusCode, apiErr.Error.Message)
 			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, apiErr.Error.Message)
 		}
+		logHTTP("response", reqURL, resp.StatusCode, "")
 		return nil, fmt.Errorf("HTTP %d", resp.StatusCode)
 	}
+	logHTTP("response", reqURL, resp.StatusCode, "")
 
 	return body, nil
+}
+
+func logHTTP(kind, reqURL string, status int, msg string) {
+	if os.Getenv("PSKILL_DEBUG_HTTP") == "" {
+		return
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return
+	}
+	logPath := filepath.Join(home, ".pskill", "http.log")
+	_ = os.MkdirAll(filepath.Dir(logPath), 0o755)
+	f, err := os.OpenFile(logPath, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	line := fmt.Sprintf("%s %-8s status=%d url=%s", time.Now().Format(time.RFC3339), kind, status, reqURL)
+	if msg != "" {
+		line += " msg=" + msg
+	}
+	line += "\n"
+	_, _ = f.WriteString(line)
 }
 
 // githubToRaw converts a GitHub tree URL to a raw content URL for SKILL.md.

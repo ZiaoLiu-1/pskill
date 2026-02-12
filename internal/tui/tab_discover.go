@@ -269,7 +269,7 @@ func (t *DiscoverTab) searchCmd() tea.Cmd {
 			remote, err = client.AISearch(query)
 		} else {
 			// Keyword search
-			remote, _, err = client.Search(query, 15, "stars")
+			remote, _, err = client.Search(query, 15, 1, "stars")
 		}
 
 		return searchResultsMsg{Local: local, Remote: remote, err: err}
