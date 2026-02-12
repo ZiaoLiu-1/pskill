@@ -129,6 +129,46 @@ func projectCLISkillDir(projectDir, cliName string) string {
 	}
 }
 
+// UninstallFromProject removes symlinks from project-local CLI dirs
+// and removes the skill from pskill.yaml. Does NOT remove from central store
+// or global CLI dirs (other projects may still use it).
+func UninstallFromProject(cfg config.Config, skillName string) error {
+	wd, _ := os.Getwd()
+	if wd == "" {
+		return fmt.Errorf("cannot determine working directory")
+	}
+
+	// Remove project-local symlinks
+	for _, target := range cfg.TargetCLIs {
+		localDir := projectCLISkillDir(wd, target)
+		if localDir == "" {
+			continue
+		}
+		linkPath := filepath.Join(localDir, skillName)
+		_ = os.Remove(linkPath)
+	}
+
+	// Update project manifest
+	manifest, err := project.Load(wd)
+	if err == nil {
+		manifest.Installed = removeItem(manifest.Installed, skillName)
+		_ = project.Save(wd, manifest)
+	}
+
+	// Record event
+	if tr, err := monitor.NewTracker(cfg.StatsDB); err == nil {
+		_ = tr.Record(monitor.Event{
+			SkillName: skillName,
+			CLI:       "global",
+			Project:   filepath.Base(wd),
+			EventType: "uninstall",
+		})
+		_ = tr.Close()
+	}
+
+	return nil
+}
+
 func appendIfMissing(items []string, item string) []string {
 	for _, it := range items {
 		if it == item {
@@ -136,4 +176,14 @@ func appendIfMissing(items []string, item string) []string {
 		}
 	}
 	return append(items, item)
+}
+
+func removeItem(items []string, item string) []string {
+	out := make([]string, 0, len(items))
+	for _, it := range items {
+		if it != item {
+			out = append(out, it)
+		}
+	}
+	return out
 }

@@ -13,6 +13,8 @@ import (
 	"github.com/ZiaoLiu-1/pskill/internal/registry"
 )
 
+// --- messages ---
+
 type trendingMsg struct {
 	items []registry.SkillResult
 	total int
@@ -24,17 +26,31 @@ type trendingInstallDoneMsg struct {
 	err    error
 }
 
+type trendingUninstallDoneMsg struct {
+	name string
+	err  error
+}
+
+// --- tab state ---
+
+type trendingState int
+
+const (
+	trendingBrowse   trendingState = iota // normal list browsing
+	trendingConfirm                       // confirmation dialog
+	trendingWorking                       // install/uninstall in progress
+)
+
 type TrendingTab struct {
-	cfg        config.Config
-	items      []registry.SkillResult
-	total      int
-	cursor     int
-	page       int
-	pageSize   int
-	loading    bool
-	installing bool
-	confirming bool // true when confirmation modal is shown
-	errMsg     string
+	cfg      config.Config
+	items    []registry.SkillResult
+	total    int
+	cursor   int
+	page     int
+	pageSize int
+	loading  bool
+	state    trendingState
+	errMsg   string
 }
 
 func NewTrendingTab(cfg config.Config) Tab {
@@ -46,45 +62,55 @@ func (t *TrendingTab) Init() tea.Cmd { return t.loadCmd() }
 func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 	switch m := msg.(type) {
 	case tea.KeyMsg:
-		// Confirmation modal keys
-		if t.confirming {
+		switch t.state {
+
+		case trendingConfirm:
 			switch m.String() {
 			case "y", "Y", "enter":
-				t.confirming = false
-				t.installing = true
+				t.state = trendingWorking
 				return t, t.installCmd(t.items[t.cursor])
-			case "n", "N", "esc":
-				t.confirming = false
+			case "n", "N", "esc", "q":
+				t.state = trendingBrowse
 			}
 			return t, nil
-		}
 
-		switch m.String() {
-		case "j", "down":
-			if t.cursor < len(t.items)-1 {
-				t.cursor++
-			}
-		case "k", "up":
-			if t.cursor > 0 {
-				t.cursor--
-			}
-		case "r":
-			return t, t.loadCmd()
-		case ">", ".":
-			if t.page*t.pageSize < t.total {
-				t.page++
-				t.cursor = 0
+		case trendingWorking:
+			// Block all keys except quit while working
+			return t, nil
+
+		default: // trendingBrowse
+			switch m.String() {
+			case "j", "down":
+				if t.cursor < len(t.items)-1 {
+					t.cursor++
+				}
+			case "k", "up":
+				if t.cursor > 0 {
+					t.cursor--
+				}
+			case "r":
 				return t, t.loadCmd()
-			}
-		case "<", ",":
-			if t.page > 1 {
-				t.page--
-				t.cursor = 0
-				return t, t.loadCmd()
-			}
-		case "enter":
-			if !t.installing && len(t.items) > 0 && t.cursor < len(t.items) {
-				t.confirming = true
+			case ">", ".":
+				if t.page*t.pageSize < t.total {
+					t.page++
+					t.cursor = 0
+					return t, t.loadCmd()
+				}
+			case "<", ",":
+				if t.page > 1 {
+					t.page--
+					t.cursor = 0
+					return t, t.loadCmd()
+				}
+			case "enter":
+				if len(t.items) > 0 && t.cursor < len(t.items) {
+					t.state = trendingConfirm
+				}
+			case "x":
+				if len(t.items) > 0 && t.cursor < len(t.items) {
+					t.state = trendingWorking
+					return t, t.uninstallCmd(t.items[t.cursor].Name)
+				}
 			}
 		}
 
@@ -99,20 +125,36 @@ func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 		}
 
 	case trendingInstallDoneMsg:
-		t.installing = false
+		t.state = trendingBrowse
 		if m.err != nil {
 			t.errMsg = m.err.Error()
 			return t, func() tea.Msg {
-				return toastMsg{text: "Install failed: " + m.err.Error(), duration: 3 * time.Second}
+				return toastMsg{text: "Failed: " + m.err.Error(), duration: 3 * time.Second}
 			}
 		}
-		summary := "Installed " + m.result.SkillName
-		if len(m.result.LinkedCLIs) > 0 {
-			summary += " → " + strings.Join(m.result.LinkedCLIs, ", ")
-		}
+		t.errMsg = ""
+		linked := strings.Join(m.result.LinkedCLIs, ", ")
 		return t, tea.Batch(
-			func() tea.Msg { return statusMsg{text: summary} },
-			func() tea.Msg { return toastMsg{text: "Installed " + m.result.SkillName, duration: 3 * time.Second} },
+			func() tea.Msg { return statusMsg{text: "Installed " + m.result.SkillName} },
+			func() tea.Msg {
+				return toastMsg{text: "Installed " + m.result.SkillName + " → " + linked, duration: 3 * time.Second}
+			},
+		)
+
+	case trendingUninstallDoneMsg:
+		t.state = trendingBrowse
+		if m.err != nil {
+			t.errMsg = m.err.Error()
+			return t, func() tea.Msg {
+				return toastMsg{text: "Uninstall failed: " + m.err.Error(), duration: 3 * time.Second}
+			}
+		}
+		t.errMsg = ""
+		return t, tea.Batch(
+			func() tea.Msg { return statusMsg{text: "Uninstalled " + m.name + " from project"} },
+			func() tea.Msg {
+				return toastMsg{text: "Removed " + m.name + " from project", duration: 3 * time.Second}
+			},
 		)
 	}
 	return t, nil
@@ -124,24 +166,35 @@ func (t *TrendingTab) View(width, height int) string {
 		return RenderTooSmall(width, height)
 	}
 
-	// === Left pane: list ===
-	var list strings.Builder
-	list.WriteString(brightStyle.Render("Trending Skills"))
+	leftPane := t.renderList(l)
+	rightPane := t.renderDetail(l)
+
+	if !l.HasDetail {
+		return leftPane
+	}
+	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+}
+
+// --- left pane: skill list ---
+
+func (t *TrendingTab) renderList(l Layout) string {
+	var b strings.Builder
 	totalPages := (t.total + t.pageSize - 1) / t.pageSize
 	if totalPages == 0 {
 		totalPages = 1
 	}
-	list.WriteString(dimStyle.Render(fmt.Sprintf("  sorted by ★ stars  (%d total)  page %d/%d", t.total, t.page, totalPages)))
-	list.WriteString("\n\n")
+	b.WriteString(brightStyle.Render("Trending Skills"))
+	b.WriteString(dimStyle.Render(fmt.Sprintf("  ★ stars  %d total  page %d/%d", t.total, t.page, totalPages)))
+	b.WriteString("\n\n")
 
 	if t.loading {
-		list.WriteString(warningStyle.Render("  Loading from skillsmp.com...") + "\n")
+		b.WriteString(warningStyle.Render("  Loading...") + "\n")
 	}
-	if t.installing {
-		list.WriteString(warningStyle.Render("  Installing...") + "\n")
+	if t.state == trendingWorking {
+		b.WriteString(warningStyle.Render("  Working...") + "\n")
 	}
 	if t.errMsg != "" {
-		list.WriteString(dangerStyle.Render("  Error: "+t.errMsg) + "\n")
+		b.WriteString(dangerStyle.Render("  "+t.errMsg) + "\n")
 	}
 
 	visibleH := l.ContentH - 3
@@ -180,97 +233,130 @@ func (t *TrendingTab) View(width, height int) string {
 		stars := dimStyle.Render(fmt.Sprintf("★%d", it.Stars))
 		author := dimStyle.Render(it.Author)
 
-		list.WriteString(fmt.Sprintf("%s%s %-28s %8s  %s\n", prefix, rank, name, stars, author))
+		b.WriteString(fmt.Sprintf("%s%s %-28s %8s  %s\n", prefix, rank, name, stars, author))
 	}
 
 	if len(t.items) == 0 && !t.loading && t.errMsg == "" {
-		list.WriteString(dimStyle.Render("  No trending data available.") + "\n")
+		b.WriteString(dimStyle.Render("  No trending data.") + "\n")
 	}
 
-	leftPane := activePaneStyle.Width(l.LeftW).Height(l.ContentH).Render(list.String())
+	return activePaneStyle.Width(l.LeftW).Height(l.ContentH).Render(b.String())
+}
 
-	// === Right pane: detail or confirmation modal ===
-	var detail strings.Builder
+// --- right pane: detail or confirmation ---
 
-	if t.confirming && len(t.items) > 0 && t.cursor < len(t.items) {
-		// Confirmation modal
-		it := t.items[t.cursor]
-		detail.WriteString(warningStyle.Render("  Install Skill?") + "\n\n")
+func (t *TrendingTab) renderDetail(l Layout) string {
+	if len(t.items) == 0 || t.cursor >= len(t.items) {
+		return paneStyle.Width(l.RightW).Height(l.ContentH).Render(
+			dimStyle.Render("No skill selected"),
+		)
+	}
 
-		detail.WriteString(brightStyle.Render("  "+it.Name) + "\n")
-		detail.WriteString(dimStyle.Render("  by "+it.Author) + "\n\n")
+	it := t.items[t.cursor]
 
-		detail.WriteString(dimStyle.Render("  This will:") + "\n")
-		detail.WriteString(brightStyle.Render("  1.") + " Download to central store\n")
-		detail.WriteString(dimStyle.Render("     ~/.pskill/store/"+it.Name+"/") + "\n")
-		detail.WriteString(brightStyle.Render("  2.") + " Symlink to project CLI dirs\n")
-		for _, cli := range t.cfg.TargetCLIs {
-			detail.WriteString(dimStyle.Render("     ."+cli+"/skills/"+it.Name) + "\n")
-		}
-		detail.WriteString(brightStyle.Render("  3.") + " Symlink to global CLI dirs\n")
-		for _, cli := range t.cfg.TargetCLIs {
-			detail.WriteString(dimStyle.Render("     ~/."+cli+"/skills/"+it.Name) + "\n")
-		}
-		detail.WriteString(brightStyle.Render("  4.") + " Update pskill.yaml\n")
+	if t.state == trendingConfirm {
+		return t.renderConfirm(l, it)
+	}
 
-		detail.WriteString("\n")
+	return t.renderSkillDetail(l, it)
+}
 
-		confirmStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#1E1E2E")).
-			Background(ColorSuccess).
-			Padding(0, 2).
-			Bold(true)
-		cancelStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#1E1E2E")).
-			Background(ColorDanger).
-			Padding(0, 2).
-			Bold(true)
+func (t *TrendingTab) renderSkillDetail(l Layout, it registry.SkillResult) string {
+	var b strings.Builder
+	b.WriteString(titleStyle.Render(it.Name) + "\n")
+	b.WriteString(dimStyle.Render("by ") + brightStyle.Render(it.Author) + "\n\n")
 
-		detail.WriteString("  " + confirmStyle.Render("y/enter  Install") + "  " + cancelStyle.Render("n/esc  Cancel") + "\n")
-	} else if len(t.items) > 0 && t.cursor < len(t.items) {
-		// Normal detail view
-		it := t.items[t.cursor]
-		detail.WriteString(titleStyle.Render(it.Name) + "\n")
-		detail.WriteString(dimStyle.Render("by ") + brightStyle.Render(it.Author) + "\n\n")
-
-		detail.WriteString(it.Description + "\n\n")
-
-		detail.WriteString(dimStyle.Render("Stars: ") + warningStyle.Render(fmt.Sprintf("★ %d", it.Stars)) + "\n")
-		if it.GithubURL != "" {
-			detail.WriteString(dimStyle.Render("GitHub: ") + dimStyle.Render(it.GithubURL) + "\n")
-		}
-		if it.SkillURL != "" {
-			detail.WriteString(dimStyle.Render("URL: ") + dimStyle.Render(it.SkillURL) + "\n")
-		}
-
-		detail.WriteString("\n" + dimStyle.Render("Press enter to install"))
+	// Wrap description to fit pane width
+	desc := it.Description
+	maxW := l.RightW - 6
+	if maxW > 10 && len(desc) > maxW {
+		b.WriteString(wordWrap(desc, maxW))
 	} else {
-		detail.WriteString(dimStyle.Render("No skill selected"))
+		b.WriteString(desc)
+	}
+	b.WriteString("\n\n")
+
+	b.WriteString(dimStyle.Render("Stars: ") + warningStyle.Render(fmt.Sprintf("★ %d", it.Stars)) + "\n\n")
+
+	b.WriteString(successStyle.Render("enter") + dimStyle.Render(" install to project") + "\n")
+	b.WriteString(dangerStyle.Render("x") + dimStyle.Render("     uninstall from project") + "\n")
+
+	return paneStyle.Width(l.RightW).Height(l.ContentH).Render(b.String())
+}
+
+func (t *TrendingTab) renderConfirm(l Layout, it registry.SkillResult) string {
+	w := l.RightW - 6
+	if w < 20 {
+		w = 20
 	}
 
-	rightPane := paneStyle.Width(l.RightW).Height(l.ContentH).Render(detail.String())
+	sep := dimStyle.Render(strings.Repeat("─", w))
 
-	if !l.HasDetail {
-		return leftPane
+	var b strings.Builder
+
+	// Title
+	b.WriteString("\n")
+	b.WriteString(warningStyle.Render("  INSTALL SKILL") + "\n")
+	b.WriteString("  " + sep + "\n\n")
+
+	// Skill info
+	b.WriteString("  " + brightStyle.Render(it.Name))
+	b.WriteString(dimStyle.Render("  by " + it.Author) + "\n\n")
+
+	// What will happen
+	b.WriteString("  " + dimStyle.Render("Store") + "\n")
+	b.WriteString("    " + dimStyle.Render("~/.pskill/store/"+it.Name+"/") + "\n\n")
+
+	b.WriteString("  " + dimStyle.Render("Project symlinks") + "\n")
+	for _, cli := range t.cfg.TargetCLIs {
+		b.WriteString("    " + successStyle.Render("→") + " " + dimStyle.Render("."+cli+"/skills/"+it.Name) + "\n")
 	}
-	return lipgloss.JoinHorizontal(lipgloss.Top, leftPane, rightPane)
+	b.WriteString("\n")
+
+	b.WriteString("  " + dimStyle.Render("Global symlinks") + "\n")
+	for _, cli := range t.cfg.TargetCLIs {
+		b.WriteString("    " + successStyle.Render("→") + " " + dimStyle.Render("~/."+cli+"/skills/"+it.Name) + "\n")
+	}
+
+	b.WriteString("\n  " + sep + "\n\n")
+
+	// Buttons
+	yBtn := lipgloss.NewStyle().
+		Foreground(lipgloss.Color("#1E1E2E")).
+		Background(ColorSuccess).
+		Padding(0, 3).
+		Bold(true).
+		Render("y  Install")
+
+	nBtn := lipgloss.NewStyle().
+		Foreground(ColorBright).
+		Background(ColorDim).
+		Padding(0, 3).
+		Render("esc  Cancel")
+
+	b.WriteString("  " + yBtn + "  " + nBtn + "\n")
+
+	return paneStyle.Width(l.RightW).Height(l.ContentH).Render(b.String())
 }
 
 func (t *TrendingTab) Title() string { return "Trending" }
+
 func (t *TrendingTab) ShortHelp() []string {
-	if t.confirming {
+	if t.state == trendingConfirm {
 		return []string{
 			helpEntry("y/enter", "install"),
-			helpEntry("n/esc", "cancel"),
+			helpEntry("esc", "cancel"),
 		}
 	}
 	return []string{
 		helpEntry("j/k", "nav"),
 		helpEntry("enter", "install"),
+		helpEntry("x", "uninstall"),
 		helpEntry("</>", "page"),
 		helpEntry("r", "refresh"),
 	}
 }
+
 func (t *TrendingTab) AcceptsTextInput() bool { return false }
 
 func (t *TrendingTab) loadCmd() tea.Cmd {
@@ -290,4 +376,32 @@ func (t *TrendingTab) installCmd(item registry.SkillResult) tea.Cmd {
 		result, err := installer.InstallFromRegistryResult(cfg, item, true)
 		return trendingInstallDoneMsg{result: result, err: err}
 	}
+}
+
+func (t *TrendingTab) uninstallCmd(name string) tea.Cmd {
+	cfg := t.cfg
+	return func() tea.Msg {
+		err := installer.UninstallFromProject(cfg, name)
+		return trendingUninstallDoneMsg{name: name, err: err}
+	}
+}
+
+// wordWrap breaks text into lines of maxWidth characters at word boundaries.
+func wordWrap(text string, maxWidth int) string {
+	words := strings.Fields(text)
+	if len(words) == 0 {
+		return ""
+	}
+	var lines []string
+	line := words[0]
+	for _, w := range words[1:] {
+		if len(line)+1+len(w) > maxWidth {
+			lines = append(lines, line)
+			line = w
+		} else {
+			line += " " + w
+		}
+	}
+	lines = append(lines, line)
+	return strings.Join(lines, "\n")
 }
