@@ -129,24 +129,37 @@ func projectCLISkillDir(projectDir, cliName string) string {
 	}
 }
 
-// UninstallFromProject removes symlinks from project-local CLI dirs
-// and removes the skill from pskill.yaml. Does NOT remove from central store
-// or global CLI dirs (other projects may still use it).
+// UninstallFromProject removes symlinks from both project-local AND global
+// CLI skill directories, removes from pskill.yaml, and removes from central store.
 func UninstallFromProject(cfg config.Config, skillName string) error {
 	wd, _ := os.Getwd()
 	if wd == "" {
 		return fmt.Errorf("cannot determine working directory")
 	}
 
-	// Remove project-local symlinks
+	adapters := adapter.All()
+
+	// Remove project-local symlinks (<cwd>/.cursor/skills/<name>, etc.)
 	for _, target := range cfg.TargetCLIs {
 		localDir := projectCLISkillDir(wd, target)
 		if localDir == "" {
 			continue
 		}
-		linkPath := filepath.Join(localDir, skillName)
-		_ = os.Remove(linkPath)
+		_ = os.Remove(filepath.Join(localDir, skillName))
 	}
+
+	// Remove global CLI symlinks (~/.cursor/skills/<name>, etc.)
+	for _, target := range cfg.TargetCLIs {
+		ad, ok := adapters[strings.TrimSpace(target)]
+		if !ok || !ad.SupportsSkills() {
+			continue
+		}
+		_ = os.Remove(filepath.Join(ad.SkillDir(), skillName))
+	}
+
+	// Remove from central store
+	st := store.NewManager(cfg.StoreDir)
+	_ = st.RemoveSkill(skillName)
 
 	// Update project manifest
 	manifest, err := project.Load(wd)
