@@ -42,22 +42,31 @@ const (
 )
 
 type TrendingTab struct {
-	cfg      config.Config
-	items    []registry.SkillResult
-	total    int
-	cursor   int
-	page     int
-	pageSize int
-	loading  bool
-	state    trendingState
-	errMsg   string
+	cfg        config.Config
+	items      []registry.SkillResult
+	total      int
+	cursor     int
+	page       int
+	pageSize   int
+	loading    bool
+	state      trendingState
+	errMsg     string
+	projectSet map[string]bool // skills installed in current project
+	storeSet   map[string]bool // skills in central store
 }
 
 func NewTrendingTab(cfg config.Config) Tab {
 	return &TrendingTab{cfg: cfg, page: 1, pageSize: 20}
 }
 
-func (t *TrendingTab) Init() tea.Cmd { return t.loadCmd() }
+func (t *TrendingTab) Init() tea.Cmd {
+	t.refreshStatus()
+	return t.loadCmd()
+}
+
+func (t *TrendingTab) refreshStatus() {
+	t.projectSet, t.storeSet = installer.BuildStatusMap(t.cfg.StoreDir)
+}
 
 func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 	switch m := msg.(type) {
@@ -126,6 +135,7 @@ func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 
 	case trendingInstallDoneMsg:
 		t.state = trendingBrowse
+		t.refreshStatus()
 		if m.err != nil {
 			t.errMsg = m.err.Error()
 			return t, func() tea.Msg {
@@ -143,6 +153,7 @@ func (t *TrendingTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 
 	case trendingUninstallDoneMsg:
 		t.state = trendingBrowse
+		t.refreshStatus()
 		if m.err != nil {
 			t.errMsg = m.err.Error()
 			return t, func() tea.Msg {
@@ -216,24 +227,60 @@ func (t *TrendingTab) renderList(l Layout) string {
 
 	for i := start; i < end; i++ {
 		it := t.items[i]
-		prefix := "  "
+
+		// Determine install status
+		inProject := t.projectSet[it.Name]
+		inStore := t.storeSet[it.Name]
+
+		// Status indicator
+		indicator := "  "
+		if inProject {
+			indicator = successStyle.Render("✓ ")
+		} else if inStore {
+			indicator = warningStyle.Render("● ")
+		}
+
+		prefix := " "
 		if i == t.cursor {
-			prefix = selectedStyle.Render("> ")
+			prefix = selectedStyle.Render(">")
 		}
 
 		globalRank := (t.page-1)*t.pageSize + i + 1
-		rank := warningStyle.Render(fmt.Sprintf("#%-3d", globalRank))
-		name := it.Name
-		if i == t.cursor {
-			name = selectedStyle.Render(name)
+		rankStr := fmt.Sprintf("#%-3d", globalRank)
+		nameStr := it.Name
+		starsStr := fmt.Sprintf("★%d", it.Stars)
+		authorStr := it.Author
+
+		// Apply color based on status
+		if inProject {
+			// Green for project-installed
+			gs := lipgloss.NewStyle().Foreground(ColorSuccess)
+			if i == t.cursor {
+				gs = gs.Bold(true)
+			}
+			b.WriteString(fmt.Sprintf("%s%s%s %-28s %8s  %s\n",
+				prefix, indicator,
+				gs.Render(rankStr), gs.Render(nameStr), gs.Render(starsStr), gs.Render(authorStr)))
+		} else if inStore {
+			// Yellow for globally installed but not in project
+			ys := lipgloss.NewStyle().Foreground(ColorWarning)
+			if i == t.cursor {
+				ys = ys.Bold(true)
+			}
+			b.WriteString(fmt.Sprintf("%s%s%s %-28s %8s  %s\n",
+				prefix, indicator,
+				ys.Render(rankStr), ys.Render(nameStr), ys.Render(starsStr), ys.Render(authorStr)))
 		} else {
-			name = brightStyle.Render(name)
+			// Normal styling
+			rank := warningStyle.Render(rankStr)
+			name := brightStyle.Render(nameStr)
+			if i == t.cursor {
+				name = selectedStyle.Render(nameStr)
+			}
+			stars := dimStyle.Render(starsStr)
+			author := dimStyle.Render(authorStr)
+			b.WriteString(fmt.Sprintf("%s%s%s %-28s %8s  %s\n", prefix, indicator, rank, name, stars, author))
 		}
-
-		stars := dimStyle.Render(fmt.Sprintf("★%d", it.Stars))
-		author := dimStyle.Render(it.Author)
-
-		b.WriteString(fmt.Sprintf("%s%s %-28s %8s  %s\n", prefix, rank, name, stars, author))
 	}
 
 	if len(t.items) == 0 && !t.loading && t.errMsg == "" {
