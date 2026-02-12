@@ -11,7 +11,9 @@ func CLIBadge(cli string) string {
 		return style.Background(lipgloss.Color("#F9E2AF")).Render("Cl")
 	case "codex":
 		return style.Background(lipgloss.Color("#89B4FA")).Render("Co")
+	case "store", "":
+		return style.Background(lipgloss.Color("#CBA6F7")).Render("S")
 	default:
-		return style.Background(lipgloss.Color("#7F849C")).Render("?")
+		return style.Background(lipgloss.Color("#7F849C")).Render(cli[:1])
 	}
 }

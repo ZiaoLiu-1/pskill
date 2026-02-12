@@ -32,7 +32,7 @@ type DiscoverTab struct {
 }
 
 func NewDiscoverTab(cfg config.Config) Tab {
-	return &DiscoverTab{cfg: cfg, typing: true}
+	return &DiscoverTab{cfg: cfg, typing: false}
 }
 
 func (t *DiscoverTab) Init() tea.Cmd { return nil }
