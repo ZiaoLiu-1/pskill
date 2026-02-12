@@ -11,7 +11,6 @@ import (
 	"github.com/charmbracelet/lipgloss"
 
 	"github.com/ZiaoLiu-1/pskill/internal/config"
-	"github.com/ZiaoLiu-1/pskill/internal/scanner"
 	"github.com/ZiaoLiu-1/pskill/internal/store"
 )
 
@@ -378,30 +377,12 @@ func cliBadgeInline(cli string) string {
 
 func (a *App) scanSystemCmd() tea.Cmd {
 	return func() tea.Msg {
-		inv, err := scanner.ScanSystemSkills()
-		if err != nil {
-			return skillsScannedMsg{names: []string{}, count: 0}
-		}
-		// Import into store
+		// Only list what's in the central store — do NOT re-import from
+		// system CLI dirs on every launch. Import only happens during
+		// `pskill init` or `pskill scan --import`.
 		st := store.NewManager(a.cfg.StoreDir)
-		names := make([]string, 0, len(inv.Skills))
-		for _, sk := range inv.Skills {
-			_ = st.ImportSkill(sk)
-			names = append(names, sk.Name)
-		}
-		// Also list anything already in store
 		existing, _ := st.ListSkills()
-		seen := map[string]bool{}
-		for _, n := range names {
-			seen[n] = true
-		}
-		for _, n := range existing {
-			if !seen[n] {
-				names = append(names, n)
-				seen[n] = true
-			}
-		}
-		return skillsScannedMsg{names: names, count: len(names)}
+		return skillsScannedMsg{names: existing, count: len(existing)}
 	}
 }
 
