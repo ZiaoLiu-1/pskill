@@ -1,8 +1,0 @@
-name: pskill
-targetClis:
-    - cursor
-    - claude
-    - codex
-defaultSkills: []
-installed:
-    - skill-creator
