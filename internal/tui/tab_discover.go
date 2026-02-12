@@ -16,18 +16,19 @@ import (
 type searchResultsMsg struct {
 	Local  []search.Result
 	Remote []registry.SkillResult
+	err    error
 }
 
 type DiscoverTab struct {
-	cfg       config.Config
-	query     string
-	typing    bool
-	cursor    int
-	searching bool
-	sortMode  int
-	local     []search.Result
-	remote    []registry.SkillResult
-	status    string
+	cfg        config.Config
+	query      string
+	typing     bool
+	cursor     int
+	searching  bool
+	searchMode int // 0=keyword, 1=AI semantic
+	local      []search.Result
+	remote     []registry.SkillResult
+	errMsg     string
 }
 
 func NewDiscoverTab(cfg config.Config) Tab {
@@ -46,15 +47,17 @@ func (t *DiscoverTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 			case "backspace":
 				if len(t.query) > 0 {
 					t.query = t.query[:len(t.query)-1]
-					return t, t.searchCmd()
 				}
 			case "enter":
 				t.typing = false
-				return t, t.searchCmd()
+				if t.query != "" {
+					return t, t.searchCmd()
+				}
+			case "ctrl+a":
+				t.searchMode = (t.searchMode + 1) % 2
 			default:
 				if len(m.String()) == 1 {
 					t.query += m.String()
-					return t, t.searchCmd()
 				}
 			}
 		} else {
@@ -69,18 +72,23 @@ func (t *DiscoverTab) Update(msg tea.Msg) (Tab, tea.Cmd) {
 				if t.cursor > 0 {
 					t.cursor--
 				}
-			case "s":
-				t.sortMode = (t.sortMode + 1) % 3
-			case "enter":
-				// Install action placeholder
-				t.status = "Install triggered (placeholder)"
+			case "m":
+				t.searchMode = (t.searchMode + 1) % 2
+				if t.query != "" {
+					return t, t.searchCmd()
+				}
 			}
 		}
 
 	case searchResultsMsg:
-		t.local = m.Local
-		t.remote = m.Remote
 		t.searching = false
+		if m.err != nil {
+			t.errMsg = m.err.Error()
+		} else {
+			t.local = m.Local
+			t.remote = m.Remote
+			t.errMsg = ""
+		}
 		t.cursor = 0
 	}
 	return t, nil
@@ -92,7 +100,7 @@ func (t *DiscoverTab) View(width, height int) string {
 		return RenderTooSmall(width, height)
 	}
 
-	sortNames := []string{"relevance", "trending", "newest"}
+	modeLabels := []string{"Keyword", "AI Semantic"}
 
 	var list strings.Builder
 
@@ -107,19 +115,30 @@ func (t *DiscoverTab) View(width, height int) string {
 	}
 	list.WriteString("\n")
 
+	// Mode indicator
+	modeStyle := successStyle
+	if t.searchMode == 1 {
+		modeStyle = warningStyle
+	}
+	list.WriteString(dimStyle.Render("Mode: ") + modeStyle.Render(modeLabels[t.searchMode]))
+	list.WriteString(dimStyle.Render("  (m to toggle)"))
+	list.WriteString("\n")
+
 	if t.searching {
 		list.WriteString(warningStyle.Render("Searching...") + "\n")
 	}
-
-	list.WriteString(dimStyle.Render(fmt.Sprintf("Sort: %s", sortNames[t.sortMode])))
-	list.WriteString("\n\n")
+	if t.errMsg != "" {
+		list.WriteString(dangerStyle.Render("Error: "+t.errMsg) + "\n")
+	}
+	list.WriteString("\n")
 
 	results := t.allResults()
 	if len(results) == 0 && t.query != "" && !t.searching {
 		list.WriteString(dimStyle.Render("  No results. Try a different query.") + "\n")
 	}
 	if len(results) == 0 && t.query == "" {
-		list.WriteString(dimStyle.Render("  Type a query to search skills by meaning.") + "\n")
+		list.WriteString(dimStyle.Render("  Type a query to search skills.") + "\n")
+		list.WriteString(dimStyle.Render("  Use AI mode for semantic search:") + "\n")
 		list.WriteString(dimStyle.Render("  e.g. \"help me write better code reviews\"") + "\n")
 	}
 
@@ -129,9 +148,9 @@ func (t *DiscoverTab) View(width, height int) string {
 			prefix = selectedStyle.Render("> ")
 		}
 
-		badge := dimStyle.Render("(Remote)")
+		badge := dimStyle.Render("R")
 		if r.isLocal {
-			badge = successStyle.Render("(Local)")
+			badge = successStyle.Render("L")
 		}
 
 		name := r.name
@@ -141,8 +160,16 @@ func (t *DiscoverTab) View(width, height int) string {
 			name = brightStyle.Render(name)
 		}
 
-		score := dimStyle.Render(fmt.Sprintf("%.0f%%", r.score*100))
-		list.WriteString(fmt.Sprintf("%s%s %s  %s\n", prefix, badge, name, score))
+		score := ""
+		if r.score > 0 {
+			score = dimStyle.Render(fmt.Sprintf("%.0f%%", r.score*100))
+		}
+		stars := ""
+		if r.stars > 0 {
+			stars = dimStyle.Render(fmt.Sprintf("★%d", r.stars))
+		}
+
+		list.WriteString(fmt.Sprintf("%s%s %-26s %6s %6s  %s\n", prefix, badge, name, score, stars, dimStyle.Render(r.author)))
 	}
 
 	leftPane := activePaneStyle.Width(l.LeftW).Height(l.ContentH).Render(list.String())
@@ -153,13 +180,19 @@ func (t *DiscoverTab) View(width, height int) string {
 	if len(results) > 0 && t.cursor < len(results) {
 		sel := results[t.cursor]
 		preview.WriteString(brightStyle.Render(sel.name) + "\n")
-		preview.WriteString(dimStyle.Render(sel.desc) + "\n\n")
+		if sel.author != "" {
+			preview.WriteString(dimStyle.Render("by ") + brightStyle.Render(sel.author) + "\n")
+		}
+		preview.WriteString("\n")
+		preview.WriteString(sel.desc + "\n\n")
 		if sel.isLocal {
 			preview.WriteString(successStyle.Render("Installed locally") + "\n")
 		} else {
 			preview.WriteString(dimStyle.Render("Available on registry") + "\n")
 		}
-		preview.WriteString("\n" + dimStyle.Render("Press enter to install/view"))
+		if sel.githubURL != "" {
+			preview.WriteString("\n" + dimStyle.Render("GitHub: "+sel.githubURL))
+		}
 	} else {
 		md := "Select a result to preview."
 		preview.WriteString(components.RenderMarkdown(md, l.RightW-4))
@@ -175,25 +208,28 @@ func (t *DiscoverTab) ShortHelp() []string {
 	if t.typing {
 		return []string{
 			helpEntry("type", "search"),
-			helpEntry("esc", "stop typing"),
-			helpEntry("enter", "search"),
+			helpEntry("ctrl+a", "mode"),
+			helpEntry("esc", "stop"),
+			helpEntry("enter", "go"),
 		}
 	}
 	return []string{
 		helpEntry("/", "search"),
+		helpEntry("m", "mode"),
 		helpEntry("j/k", "nav"),
-		helpEntry("s", "sort"),
-		helpEntry("enter", "install"),
 	}
 }
 
 func (t *DiscoverTab) AcceptsTextInput() bool { return t.typing }
 
 type discoveryResult struct {
-	name    string
-	desc    string
-	score   float64
-	isLocal bool
+	name      string
+	desc      string
+	author    string
+	score     float64
+	stars     int64
+	githubURL string
+	isLocal   bool
 }
 
 func (t *DiscoverTab) allResults() []discoveryResult {
@@ -202,7 +238,15 @@ func (t *DiscoverTab) allResults() []discoveryResult {
 		out = append(out, discoveryResult{name: l.Name, desc: l.Description, score: l.Score, isLocal: true})
 	}
 	for _, r := range t.remote {
-		out = append(out, discoveryResult{name: r.Name, desc: r.Description, score: r.Score, isLocal: false})
+		out = append(out, discoveryResult{
+			name:      r.Name,
+			desc:      r.Description,
+			author:    r.Author,
+			score:     r.Score,
+			stars:     r.Stars,
+			githubURL: r.GithubURL,
+			isLocal:   false,
+		})
 	}
 	return out
 }
@@ -210,11 +254,24 @@ func (t *DiscoverTab) allResults() []discoveryResult {
 func (t *DiscoverTab) searchCmd() tea.Cmd {
 	t.searching = true
 	query := t.query
+	mode := t.searchMode
 	return func() tea.Msg {
+		// Always search local index
 		engine := search.NewEngine(t.cfg.IndexDir)
-		local, _ := engine.Search(query, 8)
-		client := registry.NewClient(t.cfg.RegistryURL, t.cfg.CacheDir)
-		remote, _ := client.Search(query, 8)
-		return searchResultsMsg{Local: local, Remote: remote}
+		local, _ := engine.Search(query, 5)
+
+		client := registry.NewClient(t.cfg.RegistryURL, t.cfg.CacheDir, t.cfg.RegistryAPIKey)
+		var remote []registry.SkillResult
+		var err error
+
+		if mode == 1 {
+			// AI semantic search
+			remote, err = client.AISearch(query)
+		} else {
+			// Keyword search
+			remote, _, err = client.Search(query, 15, "stars")
+		}
+
+		return searchResultsMsg{Local: local, Remote: remote, err: err}
 	}
 }

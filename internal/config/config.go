@@ -31,6 +31,7 @@ type Config struct {
 	IndexDir           string   `mapstructure:"indexDir" yaml:"indexDir"`
 	StatsDB            string   `mapstructure:"statsDb" yaml:"statsDb"`
 	RegistryURL        string   `mapstructure:"registryUrl" yaml:"registryUrl"`
+	RegistryAPIKey     string   `mapstructure:"registryApiKey" yaml:"registryApiKey"`
 	TargetCLIs         []string `mapstructure:"targetClis" yaml:"targetClis"`
 	DefaultSkills      []string `mapstructure:"defaultSkills" yaml:"defaultSkills"`
 	AutoUpdateTrending bool     `mapstructure:"autoUpdateTrending" yaml:"autoUpdateTrending"`
@@ -107,6 +108,7 @@ func setDefaults(v *viper.Viper, cfg Config) {
 	v.Set("indexDir", cfg.IndexDir)
 	v.Set("statsDb", cfg.StatsDB)
 	v.Set("registryUrl", cfg.RegistryURL)
+	v.Set("registryApiKey", cfg.RegistryAPIKey)
 	v.Set("targetClis", cfg.TargetCLIs)
 	v.Set("defaultSkills", cfg.DefaultSkills)
 	v.Set("autoUpdateTrending", cfg.AutoUpdateTrending)

@@ -19,13 +19,13 @@ func newTrendingCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir)
-			items, err := client.Trending(limit, "week", "all")
+			client := registry.NewClient(cfg.RegistryURL, cfg.CacheDir, cfg.RegistryAPIKey)
+			items, _, err := client.Trending(limit, 1)
 			if err != nil {
 				return err
 			}
 			for i, it := range items {
-				fmt.Printf("%2d. %-30s ★%d ↓%d\n", i+1, it.Name, it.Stars, it.Downloads)
+				fmt.Printf("%2d. %-30s ★%d  %s\n", i+1, it.Name, it.Stars, it.Author)
 			}
 			return nil
 		},

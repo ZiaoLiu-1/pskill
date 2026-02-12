@@ -2,10 +2,13 @@ package cli
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
 
 	"github.com/ZiaoLiu-1/pskill/internal/config"
+	"github.com/ZiaoLiu-1/pskill/internal/monitor"
 	"github.com/ZiaoLiu-1/pskill/internal/store"
 )
 
@@ -29,6 +32,18 @@ func newRemoveCmd() *cobra.Command {
 					return err
 				}
 			}
+			// Record usage event
+			if tr, err := monitor.NewTracker(cfg.StatsDB); err == nil {
+				wd, _ := os.Getwd()
+				_ = tr.Record(monitor.Event{
+					SkillName: args[0],
+					CLI:       "global",
+					Project:   filepath.Base(wd),
+					EventType: "remove",
+				})
+				tr.Close()
+			}
+
 			fmt.Printf("Removed %s\n", args[0])
 			return nil
 		},
