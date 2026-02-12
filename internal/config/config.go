@@ -102,14 +102,14 @@ func SaveGlobal(cfg Config) error {
 }
 
 func setDefaults(v *viper.Viper, cfg Config) {
-	v.Set("homeDir", cfg.HomeDir)
-	v.Set("storeDir", cfg.StoreDir)
-	v.Set("cacheDir", cfg.CacheDir)
-	v.Set("indexDir", cfg.IndexDir)
-	v.Set("statsDb", cfg.StatsDB)
-	v.Set("registryUrl", cfg.RegistryURL)
-	v.Set("registryApiKey", cfg.RegistryAPIKey)
-	v.Set("targetClis", cfg.TargetCLIs)
-	v.Set("defaultSkills", cfg.DefaultSkills)
-	v.Set("autoUpdateTrending", cfg.AutoUpdateTrending)
+	v.SetDefault("homeDir", cfg.HomeDir)
+	v.SetDefault("storeDir", cfg.StoreDir)
+	v.SetDefault("cacheDir", cfg.CacheDir)
+	v.SetDefault("indexDir", cfg.IndexDir)
+	v.SetDefault("statsDb", cfg.StatsDB)
+	v.SetDefault("registryUrl", cfg.RegistryURL)
+	v.SetDefault("registryApiKey", cfg.RegistryAPIKey)
+	v.SetDefault("targetClis", cfg.TargetCLIs)
+	v.SetDefault("defaultSkills", cfg.DefaultSkills)
+	v.SetDefault("autoUpdateTrending", cfg.AutoUpdateTrending)
 }
