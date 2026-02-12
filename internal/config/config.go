@@ -9,6 +9,15 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Version info set at build time via cli package.
+var appVersion = "dev"
+
+// SetVersion stores the app version.
+func SetVersion(v string) { appVersion = v }
+
+// GetVersion returns the app version.
+func GetVersion() string { return appVersion }
+
 // IsFirstRun returns true if no config.yaml exists yet (never initialized).
 func IsFirstRun() bool {
 	_, err := os.Stat(configPath())

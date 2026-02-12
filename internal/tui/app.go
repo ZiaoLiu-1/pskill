@@ -284,7 +284,7 @@ func (a *App) View() string {
 }
 
 func (a *App) renderHeader(w int) string {
-	left := titleStyle.Render("pskill v0.1.0")
+	left := titleStyle.Render("pskill " + config.GetVersion())
 	mid := dimStyle.Render(fmt.Sprintf(" %s ", a.project))
 
 	badges := make([]string, 0, len(a.cfg.TargetCLIs))
